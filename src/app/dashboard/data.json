@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "header": "Save NGN2,000 after income",
+    "type": "Savings",
+    "status": "Active",
+    "time": "2025-12-04T10:30:00"
+  },
+  {
+    "id": 2,
+    "header": "Send NGN200,000 to Uche after pushing codebase to Github",
+    "type": "Escrow",
+    "status": "Executed",
+    "time": "2025-12-03T15:20:00"
+  },
+  {
+    "id": 3,
+    "header": "Send NGN500,000 to Jesse, if AVAX is less than 30",
+    "type": "Transfer",
+    "status": "Executed",
+    "time": "2025-12-02T09:15:00"
+  },
+  {
+    "id": 4,
+    "header": "Saved NGN2,000 after income",
+    "type": "Savings",
+    "status": "Executed",
+    "time": "2025-12-01T18:45:00"
+  },
+  {
+    "id": 5,
+    "header": "Send NGN200,000 to Uche after code review",
+    "type": "Escrow",
+    "status": "Active",
+    "time": "2025-11-30T12:00:00"
+  }
+]
