@@ -117,14 +117,14 @@ export default function WalletModal({ open, onClose }) {
           {/* Security info */}
           <div className="mt-6 p-4 bg-black/3 rounded-lg border border-black/10">
             <div className="flex items-start gap-3">
-              <div className="text-2xl">🔒</div>
+              {/* <div className="text-2xl">🔒</div> */}
               <div className="flex-1">
                 <h4 className="font-semibold text-sm mb-1">Secure Connection</h4>
                 <ul className="text-xs text-[#121212]/70 space-y-1">
-                  <li>✓ Your keys never leave your wallet</li>
-                  <li>✓ Signature-based authentication</li>
-                  <li>✓ No transaction fees to connect</li>
-                  <li>✓ Avalanche network only</li>
+                  <li>Your keys never leave your wallet</li>
+                  <li>Signature-based authentication</li>
+                  <li>No transaction fees to connect</li>
+                  <li>Avalanche network only</li>
                 </ul>
               </div>
             </div>

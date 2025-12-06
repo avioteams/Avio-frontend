@@ -141,14 +141,14 @@ export default function Landing() {
       })
 
       // Buttons entrance
-      gsap.from(heroBtnsRef.current.children, {
-        scale: 0,
-        opacity: 0,
-        duration: 1,
-        delay: 0.3,
-        stagger: 0.15,
-        ease: "elastic.out(1, 0.5)"
-      })
+      // gsap.from(heroBtnsRef.current.children, {
+      //   scale: 0,
+      //   opacity: 0,
+      //   duration: 1,
+      //   delay: 0.3,
+      //   stagger: 0.15,
+      //   ease: "elastic.out(1, 0.5)"
+      // })
 
       // Target audience reveal
       gsap.from(targetRef.current, {
@@ -315,7 +315,7 @@ export default function Landing() {
       <NavBar />
       
       {/* Main Container */}
-      <div className="grid gap-12 px-6 md:px-[120px] py-6 relative z-10">
+      <div className="grid gap-12 mt-8 px-6 md:px-[120px] py-6 relative z-10">
         
         {/* Hero Section */}
         <section className="flex flex-col items-center gap-12 text-center mt-6">
@@ -338,11 +338,12 @@ export default function Landing() {
               </h1>
             </div>
             
-            <div ref={heroBtnsRef} className="flex gap-1.5 justify-center mt-2">
+            <div className="flex gap-1.5 justify-center mt-2">
+              {/* ref={heroBtnsRef} */}
               <Button 
                 className="bg-[#e30101] text-white px-12 py-[18px] text-base rounded-full font-bold hover:shadow-[0_0_30px_rgba(227,1,1,0.5)] transition-all relative overflow-hidden group"
-                onMouseMove={handleMagneticMove}
-                onMouseLeave={handleMagneticLeave}
+                // onMouseMove={handleMagneticMove}
+                // onMouseLeave={handleMagneticLeave}
                 onClick={handleGetStarted}
                 >
                 <span className="relative z-10">{isConnected ? 'Go to Dashboard' : 'Begin an Experience'}</span>
@@ -350,7 +351,7 @@ export default function Landing() {
               </Button>
               
               <Button 
-                className="bg-white/10 backdrop-blur-sm text-white p-4 rounded-full border border-white/20 hover:border-[#e30101] hover:shadow-[0_0_20px_rgba(227,1,1,0.3)] transition-all"
+                className="bg-secondary/10 text-white p-4 rounded-full border border-white/20 hover:border-[#e30101] hover:shadow-[0_0_20px_rgba(227,1,1,0.3)] transition-all"
                 onClick={() => setShowWalletModal(true)}
                 // onMouseMove={handleMagneticMove}
                 // onMouseLeave={handleMagneticLeave}

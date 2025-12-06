@@ -17,15 +17,16 @@ export default function Footer() {
     }
 ]
     return (
-        <div className="footer text-secondary-foreground">
-            <div className="footer-container">
+        <div className="bg-secondary mt-12 text-secondary-foreground">
+            <div className="grid gap-8 px-12 pt-8 pb-0">
                 <div className="flex justify-between">
                     <div>
-                        <img src="" alt=""/>
+                        <img src="./logo-variant.svg" className="w-35" alt="./logo-variant.svg"/>
                         <p className="">Copyright @2025 Avio. All rights <br/>reserved</p>
                     </div>
-                    <div>
-                        <p className="">Nigeria</p>
+                    <div className="flex gap-2 justify-between">
+                        <p className="text-16">Nigeria</p>
+                        <img src="./Nigerian Flag.svg" className="w-8" alt="Nigerian Flag"/>
                     </div>
                 </div>
                 <div className="flex">
@@ -46,6 +47,9 @@ export default function Footer() {
                         </ul>
                     </div>
                 </div>
+            </div>
+            <div>
+                <img src="./Avio footer bd.svg" className="w-full" alt="" />
             </div>
         </div>
     )
