@@ -14,8 +14,9 @@ import Preloader from '@/components/Preloader'
 import Landing from '@/app/landing/LandingPage'
 import DashboardPage from '@/app/dashboard/Dashboard'
 import ChatFlow from '@/app/dashboard/chat/ChatFlow'
-// import RuleDetailsScreen from '@/pages/RuleDetailsScreen'
-// import TransactionReceiptScreen from '@/pages/TransactionReceiptScreen'
+import RuleDetailsScreen from '@/app/dashboard/rule/RuleDetailsScreen'
+// import TransactionReceiptScreen from '@/app/dashboard/chat/TransactionReceiptScreen'
+import TestBackend from '@/app/TestBackend'
 import ErrorPage from '@/app/ErrorPage'
 
 // Dashboard sub-pages
@@ -43,9 +44,9 @@ function App() {
               <Route 
                 path="/dashboard" 
                 element={
-                  // <ProtectedRoute>
+                  <ProtectedRoute>
                     <Layout />
-                  // </ProtectedRoute>
+                  </ProtectedRoute>
                 }
               >
                 <Route index element={<DashboardPage />} />
@@ -58,23 +59,23 @@ function App() {
               <Route 
                 path="/chat" 
                 element={
-                  // <ProtectedRoute>
+                  <ProtectedRoute>
                     <ChatFlow />
-                  // </ProtectedRoute>
+                  </ProtectedRoute>
                 } 
               />
 
-              {/* Rule Details (No Sidebar - Fullscreen) */}
-              {/* <Route 
+              {/* Rule Details */}
+              <Route 
                 path="/rules/:ruleId" 
                 element={
                   <ProtectedRoute>
                     <RuleDetailsScreen />
                   </ProtectedRoute>
                 } 
-              /> */}
+              />
 
-              {/* Receipt (No Sidebar - Fullscreen) */}
+              {/* Receipt */}
               {/* <Route 
                 path="/receipt/:txHash" 
                 element={
@@ -84,6 +85,7 @@ function App() {
                 } 
               /> */}
 
+              <Route path="/test" element={<TestBackend />} />
 
               <Route path="*" element={<ErrorPage />} />
             </Routes>

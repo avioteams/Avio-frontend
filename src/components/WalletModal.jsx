@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useWallet } from "@/contexts/WalletContext"
 
@@ -24,9 +24,9 @@ export default function WalletModal({ open, onClose }) {
       <DialogContent className="border-black/10 bg-white max-w-md">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-[#121212]">Connect to Avalanche</DialogTitle>
-          <p className="text-sm text-[#121212]/60 mt-2">
+          <DialogDescription className="text-sm text-[#121212]/60 mt-2">
             Choose your preferred wallet to continue
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 mt-4">

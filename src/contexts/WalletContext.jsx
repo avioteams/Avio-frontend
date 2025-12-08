@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import { toast } from 'sonner'
+import { api } from '@/services/api'
 
 const WalletContext = createContext()
 
@@ -19,79 +20,89 @@ export function WalletProvider({ children }) {
   const [provider, setProvider] = useState(null)
   const [chainId, setChainId] = useState(null)
   const [isConnecting, setIsConnecting] = useState(false)
-  const [walletType, setWalletType] = useState(null) // 'metamask' or 'core'
+  const [walletType, setWalletType] = useState(null)
 
   useEffect(() => {
-    restoreSession()
-    setupEventListeners()
+    initializeWallet()
   }, [])
 
-  // Restore previous session
+  const initializeWallet = async () => {
+    // Test backend (non-blocking)
+    testBackendConnection()
+    
+    // Restore session
+    await restoreSession()
+    
+    // Setup listeners
+    setupEventListeners()
+  }
+
+  const testBackendConnection = async () => {
+    try {
+      const health = await api.healthCheck()
+      console.log('Backend connected:', health)
+    } catch (err) {
+      console.error('Backend connection failed:', err.message)
+      // Don't block - app can work with cached data
+    }
+  }
+
   const restoreSession = async () => {
     const savedAccount = localStorage.getItem('walletAccount')
     const savedToken = localStorage.getItem('authToken')
     const savedWalletType = localStorage.getItem('walletType')
 
-    if (savedAccount && savedToken && window.ethereum) {
-      try {
-        const web3Provider = new ethers.BrowserProvider(window.ethereum)
-        const network = await web3Provider.getNetwork()
-        
-        setAccount(savedAccount)
-        setProvider(web3Provider)
-        setChainId(Number(network.chainId))
-        setWalletType(savedWalletType)
-        
-        // Verify we're still on Avalanche
-        if (Number(network.chainId) !== AVALANCHE_CHAIN_ID) {
-          toast.warning('Please switch back to Avalanche')
-        }
-      } catch (err) {
-        clearSession()
+    if (!savedAccount || !savedToken) return
+
+    if (!window.ethereum) {
+      clearSession()
+      return
+    }
+
+    try {
+      const web3Provider = new ethers.BrowserProvider(window.ethereum)
+      const network = await web3Provider.getNetwork()
+      
+      setAccount(savedAccount)
+      setProvider(web3Provider)
+      setChainId(Number(network.chainId))
+      setWalletType(savedWalletType)
+      
+      if (Number(network.chainId) !== AVALANCHE_CHAIN_ID) {
+        toast.warning('Please switch back to Avalanche')
       }
+    } catch (err) {
+      clearSession()
     }
   }
 
-  // Listen for wallet events
   const setupEventListeners = () => {
     if (!window.ethereum) return
 
-    // Account changes
     window.ethereum.on('accountsChanged', (accounts) => {
       if (accounts.length === 0) {
         disconnect()
-        toast.error('Wallet disconnected')
       } else if (accounts[0] !== account) {
         handleAccountSwitch(accounts[0])
       }
     })
 
-    // Network changes
     window.ethereum.on('chainChanged', (chainId) => {
       const newChainId = parseInt(chainId, 16)
       setChainId(newChainId)
       
       if (newChainId !== AVALANCHE_CHAIN_ID) {
-        toast.error('Wrong network! Please switch to Avalanche')
+        toast.error('Please switch to Avalanche')
         disconnect()
-      } else {
-        toast.success('Connected to Avalanche')
       }
-    })
-
-    // Disconnection
-    window.ethereum.on('disconnect', () => {
-      disconnect()
     })
   }
 
-  // Handle account switch in wallet
   const handleAccountSwitch = async (newAccount) => {
     try {
       setAccount(newAccount)
       localStorage.setItem('walletAccount', newAccount)
       
-      // Re-authenticate with new account
       const token = await authenticate(newAccount, provider)
       localStorage.setItem('authToken', token)
       
@@ -102,7 +113,6 @@ export function WalletProvider({ children }) {
     }
   }
 
-  // Main connection function
   const connectWallet = async (preferredWallet = null) => {
     if (!window.ethereum) {
       toast.error('No wallet detected. Please install MetaMask or Core Wallet.')
@@ -112,11 +122,9 @@ export function WalletProvider({ children }) {
     setIsConnecting(true)
 
     try {
-      // Detect which wallet to use
       const detectedWallet = detectWallet(preferredWallet)
       setWalletType(detectedWallet)
 
-      // Request accounts
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts'
       })
@@ -125,35 +133,29 @@ export function WalletProvider({ children }) {
         throw new Error('No accounts returned from wallet')
       }
 
-      // Create provider
-      const web3Provider = new ethers.BrowserProvider(window.ethereum)
+      let web3Provider = new ethers.BrowserProvider(window.ethereum)
       const network = await web3Provider.getNetwork()
       const currentChainId = Number(network.chainId)
 
       setChainId(currentChainId)
 
-      // Enforce Avalanche network
       if (currentChainId !== AVALANCHE_CHAIN_ID) {
         toast.info('Switching to Avalanche...')
         await switchToAvalanche()
-        // Refresh provider after network switch
-        const newProvider = new ethers.BrowserProvider(window.ethereum)
-        setProvider(newProvider)
-        web3Provider = newProvider
-      } else {
-        setProvider(web3Provider)
+        web3Provider = new ethers.BrowserProvider(window.ethereum)
       }
 
-      // Authenticate with backend
+      setProvider(web3Provider)
+
       const token = await authenticate(accounts[0], web3Provider)
 
-      // Save session
       setAccount(accounts[0])
       localStorage.setItem('walletAccount', accounts[0])
       localStorage.setItem('authToken', token)
       localStorage.setItem('walletType', detectedWallet)
 
       toast.success(`Connected via ${detectedWallet === 'core' ? 'Core Wallet' : 'MetaMask'}!`)
+      
       return accounts[0]
 
     } catch (err) {
@@ -164,63 +166,31 @@ export function WalletProvider({ children }) {
     }
   }
 
-  // Detect which wallet is being used
   const detectWallet = (preferred = null) => {
-    if (preferred === 'core' && window.ethereum?.isCoreWallet) {
-      return 'core'
-    }
-    if (preferred === 'metamask' && window.ethereum?.isMetaMask) {
-      return 'metamask'
-    }
-    
-    // Auto-detect
+    if (preferred === 'core' && window.ethereum?.isCoreWallet) return 'core'
+    if (preferred === 'metamask' && window.ethereum?.isMetaMask) return 'metamask'
     if (window.ethereum?.isCoreWallet) return 'core'
     if (window.ethereum?.isMetaMask) return 'metamask'
-    
     return 'unknown'
   }
 
-  // Signature-based authentication
   const authenticate = async (address, providerInstance) => {
     try {
-      // Step 1: Get nonce from backend
-      const nonceResponse = await fetch('/api/auth/nonce', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address })
-      })
+      const { nonce } = await api.getNonce(address)
 
-      if (!nonceResponse.ok) {
-        throw new Error('Failed to get authentication nonce')
-      }
-
-      const { nonce } = await nonceResponse.json()
-
-      // Step 2: Sign message with wallet
       const signer = await providerInstance.getSigner()
       const message = `Welcome to Avio!\n\nSign this message to authenticate.\n\nAddress: ${address}\nNonce: ${nonce}\nChain: Avalanche\n\nThis signature is free and won't cost gas.`
       
       const signature = await signer.signMessage(message)
 
-      // Step 3: Verify signature on backend
-      const authResponse = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          address,
-          signature,
-          message,
-          nonce,
-          chainId: AVALANCHE_CHAIN_ID
-        })
+      const { token } = await api.verifySignature({
+        address,
+        signature,
+        message,
+        nonce,
+        chainId: AVALANCHE_CHAIN_ID
       })
 
-      if (!authResponse.ok) {
-        const error = await authResponse.json()
-        throw new Error(error.error || 'Authentication failed')
-      }
-
-      const { token } = await authResponse.json()
       return token
 
     } catch (err) {
@@ -231,7 +201,6 @@ export function WalletProvider({ children }) {
     }
   }
 
-  // Switch to Avalanche network
   const switchToAvalanche = async () => {
     try {
       await window.ethereum.request({
@@ -240,27 +209,18 @@ export function WalletProvider({ children }) {
       })
       setChainId(AVALANCHE_CHAIN_ID)
     } catch (err) {
-      // Chain not added yet
       if (err.code === 4902) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [AVALANCHE_CONFIG]
-          })
-          setChainId(AVALANCHE_CHAIN_ID)
-          toast.success('Avalanche network added!')
-        } catch (addError) {
-          throw new Error('Failed to add Avalanche network')
-        }
-      } else if (err.code === 4001) {
-        throw new Error('Network switch rejected')
-      } else {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [AVALANCHE_CONFIG]
+        })
+        setChainId(AVALANCHE_CHAIN_ID)
+      } else if (err.code !== 4001) {
         throw err
       }
     }
   }
 
-  // Error handler with user-friendly messages
   const handleError = (err) => {
     let message = err.message || 'An error occurred'
 
@@ -268,22 +228,16 @@ export function WalletProvider({ children }) {
       message = 'Request rejected by user'
     } else if (err.code === -32002) {
       message = 'Request pending. Please check your wallet.'
-    } else if (err.code === 4902) {
-      message = 'Please add Avalanche network to your wallet'
-    } else if (message.includes('user rejected')) {
-      message = 'Signature rejected by user'
     }
 
     toast.error(message)
   }
 
-  // Disconnect wallet
   const disconnect = () => {
     clearSession()
     toast.success('Wallet disconnected')
   }
 
-  // Clear all session data
   const clearSession = () => {
     setAccount(null)
     setProvider(null)

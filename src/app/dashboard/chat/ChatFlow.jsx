@@ -1,10 +1,14 @@
+// src/pages/ChatFlow.jsx
 import { useState, useRef, useEffect } from 'react'
 import { Send, Edit2, Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { IconArrowAutofitLeftFilled, IconSettings } from '@tabler/icons-react'
+import { api } from '@/services/api'
+import { toast } from 'sonner'
 
 export default function ChatFlow() {
+  const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -20,25 +24,22 @@ export default function ChatFlow() {
     scrollToBottom()
   }, [messages])
 
-  // Parse user instruction with AI
+  // Parse user instruction with AI using API service
   const parseInstruction = async (instruction) => {
     setIsLoading(true)
 
     try {
-      // Call backend AI endpoint
-      const response = await fetch('/api/ai/parse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
-        body: JSON.stringify({ instruction })
-      })
-
-      const data = await response.json()
+      console.log('🤖 Parsing instruction:', instruction)
+      
+      // Call backend AI endpoint via API service
+      const data = await api.parseInstruction(instruction)
+      
+      console.log('✅ AI parsed rule:', data.rule)
       return data.rule // { action, amount, condition, recipient }
+      
     } catch (err) {
-      console.error('Parse error:', err)
+      console.error('❌ Parse error:', err)
+      toast.error('Failed to parse instruction')
       return null
     } finally {
       setIsLoading(false)
@@ -87,7 +88,7 @@ export default function ChatFlow() {
     }
   }
 
-  // Handle rule confirmation
+  // Handle rule confirmation using API service
   const handleConfirmRule = async () => {
     setIsConfirming(true)
 
@@ -99,17 +100,12 @@ export default function ChatFlow() {
     }])
 
     try {
-      // Step 1: Save rule to backend
-      const saveResponse = await fetch('/api/rules/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
-        body: JSON.stringify(currentRule)
-      })
+      console.log('💾 Saving rule:', currentRule)
 
-      const { ruleId } = await saveResponse.json()
+      // Step 1: Save rule to backend via API service
+      const { ruleId } = await api.createRule(currentRule)
+      
+      console.log('✅ Rule saved with ID:', ruleId)
 
       // Update progress
       setMessages(prev => [...prev, {
@@ -120,13 +116,10 @@ export default function ChatFlow() {
 
       await new Promise(resolve => setTimeout(resolve, 1000))
 
-      // Step 2: Activate monitoring
-      await fetch(`/api/rules/${ruleId}/activate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
-      })
+      // Step 2: Activate monitoring via API service
+      await api.activateRule(ruleId)
+      
+      console.log('✅ Rule activated and monitoring started')
 
       // Update progress
       setMessages(prev => [...prev, {
@@ -140,18 +133,26 @@ export default function ChatFlow() {
       // Success message
       setMessages(prev => [...prev, {
         type: 'success',
-        content: 'Rule activated successfully!',
+        content: '✓ Rule activated successfully!',
         ruleId: ruleId,
         timestamp: new Date()
       }])
 
+      toast.success('Rule created and activated!')
+
+      // Redirect to rule details after 2 seconds
+      setTimeout(() => {
+        navigate(`/rules/${ruleId}`)
+      }, 2000)
+
     } catch (err) {
-      console.error('Confirmation error:', err)
+      console.error('❌ Confirmation error:', err)
       setMessages(prev => [...prev, {
         type: 'error',
         content: 'Failed to create rule. Please try again.',
         timestamp: new Date()
       }])
+      toast.error('Failed to create rule')
     } finally {
       setIsConfirming(false)
     }
@@ -167,31 +168,70 @@ export default function ChatFlow() {
   } 
 
   return (
-    <div className='flex min-h-screen w-full'>
-      <div className="flex flex-col w-68 border hover:bg-[#ffffff] group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh shrink-0">
-        <img src="./Logo.svg" className="w-28 mt-2 mb-2 mx-3" alt="" />
-        <Link to="/dashboard" className='w-full p-2'>
-          <Button className="w-full mt-3">
-            <IconArrowAutofitLeftFilled />          
-            Back
-          </Button>
-        </Link>
-        <Link to="/dashboard/settings" className='w-full px-2'>
-          <Button className="text-secondary bg-[#ffffff] w-full">
-            <IconSettings/>
-            Settings
-          </Button>
-        </Link>
-      </div>
-      <div className="flex flex-col w-screen h-screen bg-[#ffffff]">
-        <div className="flex items-center gap-2 border-y px-6 py-1">
-          <div>
-            <h1 className='font-normal text-2xl'>Create Automation</h1>
-            <p className='font-normal text-xs text-black/40'>Type anything you want AVIO to do</p>
+    <div className='flex min-h-screen w-full bg-white'>
+      {/* Sidebar */}
+      <div className="flex flex-col w-68 border-r border-black/10 bg-white">
+        <div className="p-4 border-b border-black/10">
+          <img src="/Logo.svg" className="w-28" alt="Avio Logo" />
+        </div>
+        
+        <div className="flex flex-col gap-2 p-3">
+          <Link to="/dashboard">
+            <Button className="w-full justify-start bg-[#e30101] hover:bg-[#c10101] text-white">
+              <IconArrowAutofitLeftFilled className="mr-2" />          
+              Back to Dashboard
+            </Button>
+          </Link>
+          
+          <Link to="/dashboard/settings">
+            <Button className="w-full justify-start bg-transparent hover:bg-black/5 text-black border border-black/10">
+              <IconSettings className="mr-2" />
+              Settings
+            </Button>
+          </Link>
+        </div>
+
+        {/* Tips Section */}
+        <div className="mt-auto p-4 border-t border-black/10">
+          <div className="bg-black/5 rounded-lg p-3">
+            <h4 className="font-semibold text-sm text-black mb-2">💡 Quick Tips</h4>
+            <ul className="text-xs text-black/60 space-y-1">
+              <li>• "Send NGN10k if AVAX &lt; 30"</li>
+              <li>• "Save NGN5k monthly"</li>
+              <li>• "Escrow NGN50k for project"</li>
+            </ul>
           </div>
         </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex flex-col flex-1 bg-white">
+        {/* Header */}
+        <div className="flex items-center gap-2 border-b border-black/10 px-6 py-4">
+          <div>
+            <h1 className='font-semibold text-2xl text-black'>Create Automation</h1>
+            <p className='text-sm text-black/60'>Type anything you want AVIO to do</p>
+          </div>
+        </div>
+
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {messages.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-md">
+                <div className="w-16 h-16 bg-[#e30101]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Send className="w-8 h-8 text-[#e30101]" />
+                </div>
+                <h2 className="text-xl font-semibold text-black mb-2">Start a Conversation</h2>
+                <p className="text-black/60 mb-4">Tell me what automation you'd like to create</p>
+                <div className="space-y-2 text-sm text-black/50">
+                  <p>Try: "Send NGN10k if AVAX &lt; 30"</p>
+                  <p>Or: "Save NGN5,000 every month"</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {messages.map((message, index) => (
             <div key={index}>
               {/* User Message */}
@@ -206,7 +246,7 @@ export default function ChatFlow() {
               {/* AI Message */}
               {message.type === 'ai' && (
                 <div className="flex justify-start">
-                  <div className="bg-[#121212] border text-[#ffffff] px-4 py-3 rounded-2xl rounded-tl-sm max-w-md">
+                  <div className="bg-black/5 border border-black/10 text-black px-4 py-3 rounded-2xl rounded-tl-sm max-w-md">
                     {message.content}
                   </div>
                 </div>
@@ -215,29 +255,29 @@ export default function ChatFlow() {
               {/* Rule Preview */}
               {message.type === 'rule-preview' && (
                 <div className="flex justify-start">
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-6 max-w-md w-full">
-                    <h3 className="text-white font-semibold text-lg mb-4">Rule Preview</h3>
+                  <div className="bg-black/5 border border-black/10 rounded-xl p-6 max-w-md w-full">
+                    <h3 className="text-black font-semibold text-lg mb-4">Rule Preview</h3>
                     
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-white/60 text-sm">Action</span>
-                        <span className="text-white font-medium">{message.rule.action}</span>
+                        <span className="text-black/60 text-sm">Action</span>
+                        <span className="text-black font-medium">{message.rule.action}</span>
                       </div>
 
                       <div className="flex justify-between items-center">
-                        <span className="text-white/60 text-sm">Amount</span>
-                        <span className="text-white font-medium">{message.rule.amount}</span>
+                        <span className="text-black/60 text-sm">Amount</span>
+                        <span className="text-black font-medium">{message.rule.amount}</span>
                       </div>
 
                       <div className="flex justify-between items-center">
-                        <span className="text-white/60 text-sm">Condition</span>
+                        <span className="text-black/60 text-sm">Condition</span>
                         <span className="text-[#e30101] font-medium">{message.rule.condition}</span>
                       </div>
 
                       {message.rule.recipient && (
                         <div className="flex justify-between items-center">
-                          <span className="text-white/60 text-sm">Recipient</span>
-                          <span className="text-white font-mono text-sm">
+                          <span className="text-black/60 text-sm">Recipient</span>
+                          <span className="text-black font-mono text-sm">
                             {message.rule.recipient.slice(0, 6)}...{message.rule.recipient.slice(-4)}
                           </span>
                         </div>
@@ -245,11 +285,11 @@ export default function ChatFlow() {
 
                       {!message.rule.recipient && (
                         <div className="pt-2">
-                          <label className="text-white/60 text-sm block mb-2">Recipient Address</label>
+                          <label className="text-black/60 text-sm block mb-2">Recipient Address</label>
                           <input 
                             type="text"
                             placeholder="0x..."
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#e30101]"
+                            className="w-full bg-white border border-black/20 rounded-lg px-3 py-2 text-black text-sm focus:outline-none focus:ring-2 focus:ring-[#e30101]"
                             onChange={(e) => setCurrentRule({...currentRule, recipient: e.target.value})}
                           />
                         </div>
@@ -278,7 +318,7 @@ export default function ChatFlow() {
                       <button
                         onClick={handleEditRule}
                         disabled={isConfirming}
-                        className="flex-1 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="flex-1 bg-white hover:bg-black/5 text-black border border-black/20 px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         <Edit2 className="w-4 h-4" />
                         Edit
@@ -291,8 +331,8 @@ export default function ChatFlow() {
               {/* Progress Messages */}
               {message.type === 'progress' && (
                 <div className="flex justify-start">
-                  <div className="bg-white/5 text-white px-4 py-3 rounded-2xl rounded-tl-sm flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#e30101]" />
+                  <div className="bg-blue-500/10 border border-blue-500/30 text-blue-600 px-4 py-3 rounded-2xl rounded-tl-sm flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     {message.content}
                   </div>
                 </div>
@@ -301,16 +341,16 @@ export default function ChatFlow() {
               {/* Success Message */}
               {message.type === 'success' && (
                 <div className="flex justify-start">
-                  <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-2xl rounded-tl-sm">
+                  <div className="bg-green-500/10 border border-green-500/30 text-green-600 px-4 py-3 rounded-2xl rounded-tl-sm">
                     {message.content}
                     {message.ruleId && (
                       <div className="mt-2">
-                        <a 
-                          href={`/rules/${message.ruleId}`}
-                          className="text-sm underline hover:text-green-300"
+                        <Link 
+                          to={`/rules/${message.ruleId}`}
+                          className="text-sm underline hover:text-green-700"
                         >
-                          View Rule Details
-                        </a>
+                          View Rule Details →
+                        </Link>
                       </div>
                     )}
                   </div>
@@ -320,7 +360,7 @@ export default function ChatFlow() {
               {/* Error Message */}
               {message.type === 'error' && (
                 <div className="flex justify-start">
-                  <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl rounded-tl-sm">
+                  <div className="bg-red-500/10 border border-red-500/30 text-red-600 px-4 py-3 rounded-2xl rounded-tl-sm">
                     {message.content}
                   </div>
                 </div>
@@ -331,7 +371,7 @@ export default function ChatFlow() {
           {/* Loading indicator */}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-white/5 text-white px-4 py-3 rounded-2xl rounded-tl-sm flex items-center gap-2">
+              <div className="bg-black/5 border border-black/10 text-black px-4 py-3 rounded-2xl rounded-tl-sm flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-[#e30101]" />
                 <span>Thinking...</span>
               </div>
@@ -342,7 +382,7 @@ export default function ChatFlow() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border p-4 bg-[#fffff]">
+        <div className="border-t border-black/10 p-4 bg-white">
           <div className="max-w-3xl mx-auto flex gap-2">
             <input
               type="text"
@@ -351,7 +391,7 @@ export default function ChatFlow() {
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
               placeholder='Try: "Send NGN10k if AVAX < 30"'
               disabled={isLoading || isConfirming}
-              className="flex-1 bg-[#121212]/7 border rounded-full px-6 py-3 text-[#121212] placeholder:text-[#121212]/40 focus:outline-none focus:ring-2 focus:ring-[#e30101] disabled:opacity-50"
+              className="flex-1 bg-black/5 border border-black/10 rounded-full px-6 py-3 text-black placeholder:text-black/40 focus:outline-none focus:ring-2 focus:ring-[#e30101] disabled:opacity-50"
             />
             <button
               onClick={handleSendMessage}
@@ -363,7 +403,6 @@ export default function ChatFlow() {
           </div>
         </div>
       </div>
-
     </div>
   )
 }

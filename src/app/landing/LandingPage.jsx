@@ -383,7 +383,9 @@ export default function Landing() {
             Whether it's a friend, a vendor, or a creator, sending money is now as{' '}
             <span className="text-[#e30101]">easy</span> as sending a message
           </p>
-          <div className="bg-[#e30101] mt-[90px] h-[70vh] rounded-[36px]" />
+          <div className="bg-[#e30101] mt-[90px] h-[70vh] rounded-[36px] overflow-hidden flex justify-between place-items-center">
+            <img src="./Lady-on-red.jpg" className="" alt="" />
+          </div>
         </section>
 
         {/* Features Section */}
@@ -394,13 +396,13 @@ export default function Landing() {
             className="flex flex-col md:flex-row items-center gap-[60px] mb-[60px]"
           >
             <img 
-              src="../CreditCards.svg" 
+              src="./CreditCards.svg" 
               alt="Credit Cards" 
               className="w-full md:w-[450px] drop-shadow-2xl" 
             />
             <div className="flex-1 leading-[60px]">
-              <p className="text-[#e30101] text-sm font-normal uppercase tracking-wider">For you</p>
-              <p className="text-4xl md:text-5xl font-normal mt-4 leading-tight md:leading-[60px]">
+              <p className="text-[#e30101] text-sm font-semibold uppercase tracking-wider">For you</p>
+              <p className="text-4xl w-120 md:text-5xl font-normal mt-4 leading-tight md:leading-[60px]">
                 It's a New Wave of Social Money
               </p>
             </div>
@@ -412,13 +414,13 @@ export default function Landing() {
             className="flex flex-col md:flex-row-reverse items-center gap-[60px] mb-[60px]"
           >
             <img 
-              src="../WalletOnCard.svg" 
+              src="./brown wallet turned left.png" 
               alt="Wallet" 
-              className="w-full md:w-[450px] drop-shadow-2xl" 
+              className="w-full md:w-[300px] drop-shadow-2xl" 
             />
             <div className="flex-1 leading-[60px]">
-              <p className="text-[#e30101] text-sm font-normal uppercase tracking-wider">Savings</p>
-              <p className="text-4xl md:text-5xl font-normal mt-4 leading-tight md:leading-[60px]">
+              <p className="text-[#e30101] text-sm font-semibold uppercase tracking-wider">Savings</p>
+              <p className="text-4xl w-120 md:text-5xl font-normal mt-4 leading-tight md:leading-[60px]">
                 Smart Savings That Actually Save You
               </p>
             </div>
@@ -430,13 +432,13 @@ export default function Landing() {
             className="flex flex-col md:flex-row items-center gap-[60px] mb-[60px]"
           >
             <img 
-              src="../Escrow.svg" 
+              src="./Escrow.svg" 
               alt="Escrow" 
               className="w-full md:w-[450px] drop-shadow-2xl" 
             />
             <div className="flex-1 leading-[60px]">
-              <p className="text-[#e30101] text-sm font-normal uppercase tracking-wider">Creating Agreements</p>
-              <p className="text-4xl md:text-5xl font-normal mt-4 leading-tight md:leading-[60px]">
+              <p className="text-[#e30101] text-sm font-semibold uppercase tracking-wider">Creating Agreements</p>
+              <p className="text-4xl w-150 md:text-5xl font-normal mt-4 leading-tight md:leading-[60px]">
                 Escrow in One Line. No more trust issues. No more fear.
               </p>
             </div>

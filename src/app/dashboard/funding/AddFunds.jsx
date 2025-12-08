@@ -1,4 +1,3 @@
-// src/pages/Wallet.jsx (or AddFunds.jsx)
 import { useState, useEffect } from 'react'
 import { useWallet } from '@/contexts/WalletContext'
 import { Separator } from "@/components/ui/separator"
@@ -7,11 +6,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/co
 import { IconQrcode, IconCopy, IconShare, IconCheck } from "@tabler/icons-react"
 import { toast } from 'sonner'
 import QRCode from 'react-qr-code'
+import { api } from '@/services/api'
+// import { Loader2 } from 'lucide-react'
 
 export default function Wallet() {
   const { account } = useWallet()
   const [balance, setBalance] = useState(0)
   const [copied, setCopied] = useState(false)
+  // const [loading, setLoading] = useState(true)
+  // const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     fetchBalance()
@@ -19,13 +22,13 @@ export default function Wallet() {
 
   const fetchBalance = async () => {
     try {
-      const response = await fetch('/api/wallet/balance', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
-      })
-      const data = await response.json()
-      setBalance(data.balance)
+      setLoading(true)
+      console.log('Fetching wallet balance')
+      
+      const data = await api.getBalance()
+      setBalance(data.balance || 0)
+      
+      console.log('Balance loaded:', data.balance)
     } catch (err) {
       console.error('Failed to fetch balance:', err)
     }
