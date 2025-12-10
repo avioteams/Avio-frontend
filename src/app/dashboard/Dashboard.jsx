@@ -119,7 +119,7 @@ export default function DashboardPage() {
               NGN{balance.toLocaleString()}
             </h1>
             <p className="text-white/60 text-sm">Avalanche Fuji Testnet</p>
-            <Link to="/dashboard/wallet">
+            <Link to="/dashboard/fund">
               <Button className="mt-4 bg-white text-[#e30101] hover:bg-white/90 px-6 py-2 rounded-full font-semibold transition-colors">
                 Add Funds
               </Button>

@@ -171,7 +171,7 @@ export default function ChatFlow() {
     <div className='flex min-h-screen w-full bg-white'>
       {/* Sidebar */}
       <div className="flex flex-col w-68 border-r border-black/10 bg-white">
-        <div className="p-4 border-b border-black/10">
+        <div className="p-4">
           <img src="/Logo.svg" className="w-28" alt="Avio Logo" />
         </div>
         
@@ -192,7 +192,7 @@ export default function ChatFlow() {
         </div>
 
         {/* Tips Section */}
-        <div className="mt-auto p-4 border-t border-black/10">
+        <div className="mt-auto p-4 border-black/10">
           <div className="bg-black/5 rounded-lg p-3">
             <h4 className="font-semibold text-sm text-black mb-2">💡 Quick Tips</h4>
             <ul className="text-xs text-black/60 space-y-1">
@@ -206,14 +206,6 @@ export default function ChatFlow() {
 
       {/* Main Chat Area */}
       <div className="flex flex-col flex-1 bg-white">
-        {/* Header */}
-        <div className="flex items-center gap-2 border-b border-black/10 px-6 py-4">
-          <div>
-            <h1 className='font-semibold text-2xl text-black'>Create Automation</h1>
-            <p className='text-sm text-black/60'>Type anything you want AVIO to do</p>
-          </div>
-        </div>
-
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.length === 0 && (
