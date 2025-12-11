@@ -113,8 +113,12 @@ export function WalletProvider({ children }) {
     }
   }
 
-  const connectWallet = async (preferredWallet = null) => {
-    if (!window.ethereum) {
+  // FIXED: Now accepts a specific wallet provider as parameter
+  const connectWallet = async (preferredWallet = null, specificProvider = null) => {
+    // Use the specific provider passed from WalletModal, or fall back to window.ethereum
+    const walletProvider = specificProvider || window.ethereum
+
+    if (!walletProvider) {
       toast.error('No wallet detected. Please install MetaMask or Core Wallet.')
       return null
     }
@@ -122,18 +126,47 @@ export function WalletProvider({ children }) {
     setIsConnecting(true)
 
     try {
-      const detectedWallet = detectWallet(preferredWallet)
+      const detectedWallet = detectWallet(preferredWallet, walletProvider)
       setWalletType(detectedWallet)
 
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      })
+      console.log(`📡 Requesting accounts from ${detectedWallet}...`)
+
+      // First, check if there are already connected accounts (no popup needed)
+      let accounts = []
+      try {
+        accounts = await walletProvider.request({ method: 'eth_accounts' })
+        if (accounts.length > 0) {
+          console.log('✅ Using already connected account:', accounts[0])
+        }
+      } catch (err) {
+        console.log('No existing connection, will request new one')
+      }
+
+      // If no accounts, request connection (this will show popup)
+      if (accounts.length === 0) {
+        console.log('🔓 Opening wallet popup for authorization...')
+        
+        // Add timeout to prevent hanging
+        const requestAccountsWithTimeout = Promise.race([
+          walletProvider.request({
+            method: 'eth_requestAccounts'
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection request timed out.\n\nPlease check:\n• MetaMask popup is not blocked\n• MetaMask is unlocked\n• No pending requests in MetaMask')), 30000)
+          )
+        ])
+
+        accounts = await requestAccountsWithTimeout
+      }
 
       if (!accounts || accounts.length === 0) {
         throw new Error('No accounts returned from wallet')
       }
 
-      let web3Provider = new ethers.BrowserProvider(window.ethereum)
+      console.log('✅ Got accounts:', accounts[0])
+
+      // Create ethers provider from the specific wallet provider
+      let web3Provider = new ethers.BrowserProvider(walletProvider)
       const network = await web3Provider.getNetwork()
       const currentChainId = Number(network.chainId)
 
@@ -141,8 +174,8 @@ export function WalletProvider({ children }) {
 
       if (currentChainId !== AVALANCHE_CHAIN_ID) {
         toast.info('Switching to Avalanche...')
-        await switchToAvalanche()
-        web3Provider = new ethers.BrowserProvider(window.ethereum)
+        await switchToAvalanche(walletProvider)
+        web3Provider = new ethers.BrowserProvider(walletProvider)
       }
 
       setProvider(web3Provider)
@@ -166,11 +199,13 @@ export function WalletProvider({ children }) {
     }
   }
 
-  const detectWallet = (preferred = null) => {
-    if (preferred === 'core' && window.ethereum?.isCoreWallet) return 'core'
-    if (preferred === 'metamask' && window.ethereum?.isMetaMask) return 'metamask'
-    if (window.ethereum?.isCoreWallet) return 'core'
-    if (window.ethereum?.isMetaMask) return 'metamask'
+  const detectWallet = (preferred = null, providerToCheck = null) => {
+    const checkProvider = providerToCheck || window.ethereum
+    
+    if (preferred === 'core' && checkProvider?.isCoreWallet) return 'core'
+    if (preferred === 'metamask' && checkProvider?.isMetaMask) return 'metamask'
+    if (checkProvider?.isCoreWallet) return 'core'
+    if (checkProvider?.isMetaMask) return 'metamask'
     return 'unknown'
   }
 
@@ -201,16 +236,18 @@ export function WalletProvider({ children }) {
     }
   }
 
-  const switchToAvalanche = async () => {
+  const switchToAvalanche = async (providerToUse = null) => {
+    const targetProvider = providerToUse || window.ethereum
+    
     try {
-      await window.ethereum.request({
+      await targetProvider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: AVALANCHE_HEX }]
       })
       setChainId(AVALANCHE_CHAIN_ID)
     } catch (err) {
       if (err.code === 4902) {
-        await window.ethereum.request({
+        await targetProvider.request({
           method: 'wallet_addEthereumChain',
           params: [AVALANCHE_CONFIG]
         })

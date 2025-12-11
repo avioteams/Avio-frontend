@@ -1,8 +1,9 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useWallet } from "@/contexts/WalletContext"
 import { Loader2, X, ExternalLink, Sparkles } from "lucide-react"
 import { useState, useEffect } from "react"
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 
 export default function WalletModal({ open, onClose }) {
   const { connectWallet, isConnecting } = useWallet()
@@ -109,35 +110,45 @@ export default function WalletModal({ open, onClose }) {
         throw new Error(`${walletName} provider not found`)
       }
 
-      console.log(`📡 Setting provider as window.ethereum temporarily for ${walletType}...`)
-      
-      // CRITICAL FIX: Temporarily set the correct provider as window.ethereum
-      // so that WalletContext.connectWallet() uses the right one
-      const originalEthereum = window.ethereum
-      window.ethereum = provider
-      
-      try {
-        // Now call your context's connectWallet with the wallet type
-        await connectWallet(walletType)
-        
-        console.log(`✅ Successfully connected to ${walletType}`)
-        onClose()
-      } finally {
-        // ALWAYS restore the original ethereum object
-        window.ethereum = originalEthereum
-        console.log('🔧 Restored original window.ethereum')
+      // Check if provider is ready (important for MetaMask)
+      if (typeof provider.request !== 'function') {
+        throw new Error('Wallet provider is not ready. Please refresh the page.')
       }
+
+      console.log(`📡 Connecting with specific ${walletType} provider...`)
+      
+      // Show a toast to guide the user
+      const walletName = walletType === 'metamask' ? 'MetaMask' : 'Core Wallet'
+      
+      // Check for popup blockers
+      if (window.self !== window.top) {
+        console.warn('Running in iframe - popups might be blocked')
+      }
+      
+      // FIXED: Pass the specific provider directly to connectWallet
+      await connectWallet(walletType, provider)
+      
+      console.log(`✅ Successfully connected to ${walletType}`)
+      onClose()
       
     } catch (err) {
       console.error(`❌ ${walletType} connection error:`, err)
       
+      let errorMessage = ''
+      
       if (err.code === 4001) {
-        alert('Connection cancelled. Please try again when ready.')
+        errorMessage = 'You rejected the connection request. Click connect again when ready.'
       } else if (err.code === -32002) {
-        alert('A connection request is already pending. Please check your wallet.')
+        errorMessage = 'A connection request is already pending in your wallet. Please open your wallet and approve or reject it first.'
+      } else if (err.message?.includes('timed out')) {
+        errorMessage = `Connection timed out. Please:\n\n1. Check if ${walletType === 'metamask' ? 'MetaMask' : 'Core Wallet'} popup appeared\n2. Make sure popup blockers are disabled\n3. Unlock your wallet if it's locked\n4. Try clicking the wallet extension icon manually`
+      } else if (err.message?.includes('not ready')) {
+        errorMessage = 'Wallet is not ready. Please refresh the page and try again.'
       } else {
-        alert(`Failed to connect to ${walletType === 'metamask' ? 'MetaMask' : 'Core Wallet'}: ${err.message || 'Unknown error'}`)
+        errorMessage = `Failed to connect: ${err.message || 'Unknown error'}`
       }
+      
+      alert(errorMessage)
     } finally {
       setConnectingWallet(null)
     }
@@ -146,15 +157,20 @@ export default function WalletModal({ open, onClose }) {
   const hasNoWallet = !wallets.metamask && !wallets.core
 
   return (
-    <Dialog open={open} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed" onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="border-none bg-[#121212] max-w-[440px] p-0 overflow-hidden rounded-3xl shadow-2xl">
+        {/* ACCESSIBILITY FIX: Added hidden title and description */}
+        <VisuallyHidden>
+          <DialogTitle>Connect Wallet</DialogTitle>
+          <DialogDescription>
+            Choose your preferred wallet provider to connect to Avio
+          </DialogDescription>
+        </VisuallyHidden>
+
         <div className="absolute hidden inset-0 bg-gradient-to-br from-[#e30101]/10 via-transparent to-[#e30101]/5 pointer-events-none" />
 
         <div className="relative p-8">
           <div className="text-center mb-8">
-            {/* <div className="inline-flex items-center hidden justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#e30101] to-[#c10101] mb-4 shadow-lg shadow-[#e30101]/20">
-              <img src="./Trademark-logo.svg" className="w-12 hidden" alt="" />
-            </div> */}
             <h2 className="text-3xl font-bold text-white mb-2">
               Connect to Avio
             </h2>

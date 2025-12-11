@@ -44,9 +44,9 @@ function App() {
               <Route 
                 path="/dashboard" 
                 element={
-                  <ProtectedRoute>
+                  // <ProtectedRoute>
                     <Layout />
-                  </ProtectedRoute>
+                  // </ProtectedRoute>
                 }
               >
                 <Route index element={<DashboardPage />} />
@@ -59,9 +59,9 @@ function App() {
               <Route 
                 path="/chat" 
                 element={
-                  <ProtectedRoute>
+                  // <ProtectedRoute>
                     <ChatFlow />
-                  </ProtectedRoute>
+                  // </ProtectedRoute>
                 } 
               />
 
