@@ -19,6 +19,7 @@ gsap.registerPlugin(ScrollTrigger)
 
 export default function Landing() {
   const navigate = useNavigate()
+  const { isConnected } = useWallet()
   const [showWalletModal, setShowWalletModal] = useState(false)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   
@@ -32,8 +33,13 @@ export default function Landing() {
   const cursorRef = useRef(null)
   const glowRef = useRef(null)
 
+  // To check if users wallet is connect to Avio
   const handleGetStarted = () => {
-    navigate('/dashboard')
+    if (isConnected) {
+      navigate('/dashboard')
+    } else {
+      setShowWalletModal(true)
+    }
   }
 
   useEffect(() => {
@@ -204,8 +210,12 @@ export default function Landing() {
                 className="bg-secondary/10 text-white p-4 rounded-full border border-white/20 hover:border-[#e30101] hover:shadow-[0_0_20px_rgba(227,1,1,0.3)] transition-all w-full sm:w-auto"
                 onClick={() => setShowWalletModal(true)}
               >
-                <IconWallet size={24} />
+                <IconWallet size={24} />    
               </Button>
+              <WalletModal 
+                open={showWalletModal} 
+                onClose={() => setShowWalletModal(false)} 
+              />
             </div>
           </div>
           

@@ -1,48 +1,189 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useWallet } from "@/contexts/WalletContext"
+import { Loader2, X, ExternalLink, Sparkles } from "lucide-react"
+import { useState, useEffect } from "react"
 
 export default function WalletModal({ open, onClose }) {
   const { connectWallet, isConnecting } = useWallet()
+  const [wallets, setWallets] = useState({ metamask: false, core: false })
+  const [hoveredWallet, setHoveredWallet] = useState(null)
+  const [connectingWallet, setConnectingWallet] = useState(null)
+
+  useEffect(() => {
+    if (open && typeof window !== 'undefined') {
+      const detected = detectWallets()
+      setWallets(detected)
+    }
+  }, [open])
+
+  const detectWallets = () => {
+    let hasMetaMask = false
+    let hasCoreWallet = false
+
+    if (window.ethereum?.providers && Array.isArray(window.ethereum.providers)) {
+      window.ethereum.providers.forEach((provider) => {
+        if (provider.isMetaMask && !provider.isCoreWallet && !provider.isAvalanche) {
+          hasMetaMask = true
+        }
+        if (provider.isCoreWallet || provider.isAvalanche) {
+          hasCoreWallet = true
+        }
+      })
+    } else if (window.ethereum) {
+      if (window.ethereum.isMetaMask && !window.ethereum.isCoreWallet && !window.ethereum.isAvalanche) {
+        hasMetaMask = true
+      }
+      if (window.ethereum.isCoreWallet || window.ethereum.isAvalanche) {
+        hasCoreWallet = true
+      }
+    }
+
+    if (window.avalanche) {
+      hasCoreWallet = true
+    }
+
+    return { metamask: hasMetaMask, core: hasCoreWallet }
+  }
+
+  const getProvider = (walletType) => {
+    if (walletType === 'metamask') {
+      if (window.ethereum?.providers && Array.isArray(window.ethereum.providers)) {
+        const metamaskProvider = window.ethereum.providers.find(
+          p => p.isMetaMask === true && !p.isCoreWallet && !p.isAvalanche
+        )
+        if (metamaskProvider) {
+          console.log('✅ Found MetaMask in providers array')
+          return metamaskProvider
+        }
+      }
+      
+      if (window.ethereum?.isMetaMask && !window.ethereum.isCoreWallet && !window.ethereum.isAvalanche) {
+        console.log('✅ Found MetaMask as single provider')
+        return window.ethereum
+      }
+      
+      console.error('❌ MetaMask provider not found')
+      return null
+    } 
+    else if (walletType === 'core') {
+      if (window.avalanche) {
+        console.log('✅ Found Core via window.avalanche')
+        return window.avalanche
+      }
+      
+      if (window.ethereum?.providers && Array.isArray(window.ethereum.providers)) {
+        const coreProvider = window.ethereum.providers.find(p => p.isCoreWallet || p.isAvalanche)
+        if (coreProvider) {
+          console.log('✅ Found Core in providers array')
+          return coreProvider
+        }
+      }
+      
+      if (window.ethereum?.isCoreWallet || window.ethereum?.isAvalanche) {
+        console.log('✅ Found Core as single provider')
+        return window.ethereum
+      }
+      
+      console.error('❌ Core provider not found')
+      return null
+    }
+    
+    return null
+  }
 
   const handleConnect = async (walletType) => {
+    if (connectingWallet) {
+      console.log('⚠️ Already connecting to:', connectingWallet)
+      return
+    }
+    
+    console.log(`🔗 Starting connection to: ${walletType}`)
+    setConnectingWallet(walletType)
+    
     try {
-      await connectWallet(walletType)
-      onClose()
+      const provider = getProvider(walletType)
+
+      if (!provider) {
+        const walletName = walletType === 'metamask' ? 'MetaMask' : 'Core Wallet'
+        throw new Error(`${walletName} provider not found`)
+      }
+
+      console.log(`📡 Setting provider as window.ethereum temporarily for ${walletType}...`)
+      
+      // CRITICAL FIX: Temporarily set the correct provider as window.ethereum
+      // so that WalletContext.connectWallet() uses the right one
+      const originalEthereum = window.ethereum
+      window.ethereum = provider
+      
+      try {
+        // Now call your context's connectWallet with the wallet type
+        await connectWallet(walletType)
+        
+        console.log(`✅ Successfully connected to ${walletType}`)
+        onClose()
+      } finally {
+        // ALWAYS restore the original ethereum object
+        window.ethereum = originalEthereum
+        console.log('🔧 Restored original window.ethereum')
+      }
+      
     } catch (err) {
-      // Error already handled with toast
+      console.error(`❌ ${walletType} connection error:`, err)
+      
+      if (err.code === 4001) {
+        alert('Connection cancelled. Please try again when ready.')
+      } else if (err.code === -32002) {
+        alert('A connection request is already pending. Please check your wallet.')
+      } else {
+        alert(`Failed to connect to ${walletType === 'metamask' ? 'MetaMask' : 'Core Wallet'}: ${err.message || 'Unknown error'}`)
+      }
+    } finally {
+      setConnectingWallet(null)
     }
   }
 
-  // Check what's installed
-  const hasMetaMask = typeof window !== 'undefined' && window.ethereum?.isMetaMask
-  const hasCoreWallet = typeof window !== 'undefined' && window.ethereum?.isCoreWallet
-  const hasNoWallet = typeof window !== 'undefined' && !window.ethereum
+  const hasNoWallet = !wallets.metamask && !wallets.core
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="border-black/10 bg-white max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-[#121212]">Connect to Avalanche</DialogTitle>
-          <DialogDescription className="text-sm text-[#121212]/60 mt-2">
-            Choose your preferred wallet to continue
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog open={open} className="absolute top-5 right-5 z-10 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed" onOpenChange={onClose}>
+      <DialogContent className="border-none bg-[#121212] max-w-[440px] p-0 overflow-hidden rounded-3xl shadow-2xl">
+        <div className="absolute hidden inset-0 bg-gradient-to-br from-[#e30101]/10 via-transparent to-[#e30101]/5 pointer-events-none" />
 
-        <div className="space-y-3 mt-4">
-          {/* No wallet detected */}
+        <div className="relative p-8">
+          <div className="text-center mb-8">
+            {/* <div className="inline-flex items-center hidden justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#e30101] to-[#c10101] mb-4 shadow-lg shadow-[#e30101]/20">
+              <img src="./Trademark-logo.svg" className="w-12 hidden" alt="" />
+            </div> */}
+            <h2 className="text-3xl font-bold text-white mb-2">
+              Connect to Avio
+            </h2>
+            <p className="text-white/50 text-sm">
+              Choose your wallet to get started
+            </p>
+          </div>
+
           {hasNoWallet && (
-            <div className="p-4 bg-[#e30101]/10 border border-[#e30101]/30 rounded-lg">
-              <p className="text-sm text-black/80 mb-3">
-                No wallet detected. Install one to continue:
-              </p>
+            <div className="mb-6 p-5 rounded-2xl bg-[#e30101]/10 border border-[#e30101]/20 backdrop-blur-sm">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#e30101]/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl">⚠️</span>
+                </div>
+                <div>
+                  <h4 className="text-white font-semibold mb-1">No Wallet Found</h4>
+                  <p className="text-white/60 text-sm">
+                    Install a wallet extension to continue
+                  </p>
+                </div>
+              </div>
+              
               <div className="grid grid-cols-2 gap-3">
                 <a 
                   href="https://metamask.io/download/" 
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
-                  <Button className="w-full bg-black/10 hover:bg-black/20">
+                  <Button className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl h-11 text-sm">
                     <span className="mr-2">🦊</span> MetaMask
                   </Button>
                 </a>
@@ -51,88 +192,165 @@ export default function WalletModal({ open, onClose }) {
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
-                  <Button className="w-full bg-black/10 hover:bg-white/20">
-                    <span className="mr-2">⚡</span> Core
+                  <Button className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl h-11 text-sm">
+                    <span className="mr-2">
+                      <img src="./avalanche-logo.png" className="w-8" alt="" />
+                    </span> Core
                   </Button>
                 </a>
               </div>
             </div>
           )}
 
-          {/* MetaMask option */}
-          {hasMetaMask && (
-            <Button
-              onClick={() => handleConnect('metamask')}
-              disabled={isConnecting}
-              className="w-full h-16 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white flex items-center justify-between px-6 rounded-xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-                  🦊
+          <div className="space-y-3 mb-6">
+            {wallets.metamask && (
+              <button
+                onClick={() => handleConnect('metamask')}
+                disabled={connectingWallet !== null}
+                onMouseEnter={() => !connectingWallet && setHoveredWallet('metamask')}
+                onMouseLeave={() => setHoveredWallet(null)}
+                className="w-full group relative"
+              >
+                <div className={`
+                  relative overflow-hidden rounded-2xl p-5 transition-all duration-300
+                  ${hoveredWallet === 'metamask' ? 'bg-gradient-to-br from-orange-500/15 to-orange-600/10' : 'bg-white/5'}
+                  border ${hoveredWallet === 'metamask' ? 'border-orange-500/40' : 'border-white/10'}
+                  hover:shadow-lg hover:shadow-orange-500/10
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                `}>
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`
+                        w-14 h-14 rounded-xl flex items-center justify-center text-3xl
+                        transition-all duration-300 shadow-lg
+                        ${hoveredWallet === 'metamask' ? 'bg-gradient-to-br from-orange-500 to-orange-600 scale-110' : 'bg-white/10'}
+                      `}>
+                        🦊
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-white text-lg mb-0.5">MetaMask</p>
+                        <p className="text-white/50 text-xs">Popular browser wallet</p>
+                      </div>
+                    </div>
+                    
+                    {connectingWallet === 'metamask' ? (
+                      <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                    ) : (
+                      <div className={`
+                        transition-all duration-300
+                        ${hoveredWallet === 'metamask' ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}
+                      `}>
+                        <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                          <span className="text-orange-500 text-xl">→</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className={`
+                    absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent
+                    transition-transform duration-700
+                    ${hoveredWallet === 'metamask' ? 'translate-x-full' : '-translate-x-full'}
+                  `} />
                 </div>
-                <div className="text-left">
-                  <p className="font-semibold">MetaMask</p>
-                  <p className="text-xs text-white/80">Browser extension</p>
-                </div>
-              </div>
-              {isConnecting && (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-            </Button>
-          )}
+              </button>
+            )}
 
-          {/* Core Wallet option */}
-          {hasCoreWallet && (
-            <Button
-              onClick={() => handleConnect('core')}
-              disabled={isConnecting}
-              className="w-full h-16 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white flex items-center justify-between px-6 rounded-xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-                  ⚡
+            {wallets.core && (
+              <button
+                onClick={() => handleConnect('core')}
+                disabled={connectingWallet !== null}
+                onMouseEnter={() => !connectingWallet && setHoveredWallet('core')}
+                onMouseLeave={() => setHoveredWallet(null)}
+                className="w-full group relative"
+              >
+                <div className={`
+                  relative overflow-hidden rounded-2xl p-5 transition-all duration-300
+                  ${hoveredWallet === 'core' ? 'bg-gradient-to-br from-[#e30101]/15 to-[#c10101]/10' : 'bg-white/5'}
+                  border ${hoveredWallet === 'core' ? 'border-[#e30101]/40' : 'border-white/10'}
+                  hover:shadow-lg hover:shadow-[#e30101]/10
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                `}>
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`
+                        w-14 h-14 rounded-xl flex items-center justify-center text-3xl
+                        transition-all duration-300 shadow-lg
+                        ${hoveredWallet === 'core' ? 'bg-gradient-to-br from-[#e30101] to-[#c10101] scale-110' : 'bg-white/10'}
+                      `}>
+                        <img src="./avalanche-logo.png" className="w-8" alt="" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-semibold text-white text-lg mb-0.5">Core Wallet</p>
+                        <p className="text-white/50 text-xs">Native Avalanche wallet</p>
+                      </div>
+                    </div>
+                    
+                    {connectingWallet === 'core' ? (
+                      <Loader2 className="w-5 h-5 text-[#e30101] animate-spin" />
+                    ) : (
+                      <div className={`
+                        transition-all duration-300
+                        ${hoveredWallet === 'core' ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}
+                      `}>
+                        <div className="w-10 h-10 rounded-xl bg-[#e30101]/20 flex items-center justify-center">
+                          <span className="text-[#e30101] text-xl">→</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className={`
+                    absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent
+                    transition-transform duration-700
+                    ${hoveredWallet === 'core' ? 'translate-x-full' : '-translate-x-full'}
+                  `} />
                 </div>
-                <div className="text-left">
-                  <p className="font-semibold">Core Wallet</p>
-                  <p className="text-xs text-white/80">Native Avalanche</p>
-                </div>
-              </div>
-              {isConnecting && (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-            </Button>
-          )}
+              </button>
+            )}
+          </div>
 
-          {/* If only one wallet, show generic option */}
-          {!hasNoWallet && !hasMetaMask && !hasCoreWallet && (
-            <Button
-              onClick={() => handleConnect()}
-              disabled={isConnecting}
-              className="w-full h-16 bg-[#e30101] hover:bg-[#c10101] text-[white]"
-            >
-              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-            </Button>
-          )}
-
-          {/* Security info */}
-          <div className="mt-6 p-4 bg-black/3 rounded-lg border border-black/10">
+          <div className="p-4 rounded-2xl bg-white/5 border hidden border-white/10 backdrop-blur-sm">
             <div className="flex items-start gap-3">
-              {/* <div className="text-2xl">🔒</div> */}
+              <div className="w-8 h-8 rounded-lg bg-[#e30101]/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-sm">🔒</span>
+              </div>
               <div className="flex-1">
-                <h4 className="font-semibold text-sm mb-1">Secure Connection</h4>
-                <ul className="text-xs text-[#121212]/70 space-y-1">
-                  <li>Your keys never leave your wallet</li>
-                  <li>Signature-based authentication</li>
-                  <li>No transaction fees to connect</li>
-                  <li>Avalanche network only</li>
+                <h4 className="text-white font-semibold text-sm mb-2">
+                  Secure Connection
+                </h4>
+                <ul className="space-y-1.5 text-xs text-white/60">
+                  <li className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-[#e30101]" />
+                    Your keys never leave your wallet
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-[#e30101]" />
+                    No fees to connect
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-[#e30101]" />
+                    Powered by Avalanche Fuji Testnet
+                  </li>
                 </ul>
               </div>
             </div>
           </div>
 
-          <p className="text-xs text-[#121212]/50 text-center">
-            By connecting, you agree to our Terms of Service
-          </p>
+          <div className="mt-6 pt-6 border-t border-white/10">
+            <p className="text-xs text-white/40 text-center">
+              Don't have an Ethereum wallet?{' '}
+              <a 
+                href="https://ethereum.org/en/wallets/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[#e30101] hover:text-[#ff0000] inline-flex items-center gap-1 transition-colors"
+              >
+                Get one
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
