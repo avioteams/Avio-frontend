@@ -241,7 +241,7 @@ export default function WalletModal({ open, onClose }) {
                         transition-all duration-300 shadow-lg
                         ${hoveredWallet === 'metamask' ? 'bg-gradient-to-br from-orange-500 to-orange-600 scale-110' : 'bg-white/10'}
                       `}>
-                        🦊
+                        <img src="./Metamask-Icon.png" className="w-8" alt="" />
                       </div>
                       <div className="text-left">
                         <p className="font-semibold text-white text-lg mb-0.5">MetaMask</p>
@@ -294,7 +294,7 @@ export default function WalletModal({ open, onClose }) {
                         transition-all duration-300 shadow-lg
                         ${hoveredWallet === 'core' ? 'bg-gradient-to-br from-[#e30101] to-[#c10101] scale-110' : 'bg-white/10'}
                       `}>
-                        <img src="./avalanche-logo.png" className="w-8" alt="" />
+                        <img src="./core.png" className="w-8" alt="" />
                       </div>
                       <div className="text-left">
                         <p className="font-semibold text-white text-lg mb-0.5">Core Wallet</p>

@@ -97,7 +97,7 @@ export function WalletProvider({ children }) {
         }
         
         // Show progress toast during retries
-        if (attempt === 1) {
+        if (attempt === 3) {
           toast.loading('Connecting to server... This may take up to 60 seconds', {
             id: 'backend-connecting'
           })
