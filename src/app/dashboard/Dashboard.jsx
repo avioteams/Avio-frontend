@@ -125,7 +125,7 @@ export default function DashboardPage() {
               </Button>
             </Link>
           </div>
-          <div className="w-72 h-72 absolute right-12 top-16 opacity-20">
+          <div className="w-72 h-72 absolute right-12 top-0 opacity-100">
             <img src="../gold money bag.png" alt="" className="w-full h-full object-contain" />
           </div>
         </div>

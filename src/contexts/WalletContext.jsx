@@ -21,16 +21,23 @@ export function WalletProvider({ children }) {
   const [chainId, setChainId] = useState(null)
   const [isConnecting, setIsConnecting] = useState(false)
   const [walletType, setWalletType] = useState(null)
+  const [backendStatus, setBackendStatus] = useState('checking') // 'checking' | 'connected' | 'failed'
+  const [isAuthenticated, setIsAuthenticated] = useState(false) // NEW: Track auth status
 
   useEffect(() => {
     initializeWallet()
   }, [])
 
   const initializeWallet = async () => {
-    // Test backend (non-blocking)
-    testBackendConnection()
+    // MUST check backend first - blocking operation
+    const backendAvailable = await testBackendConnection()
     
-    // Restore session
+    if (!backendAvailable) {
+      console.error('❌ Cannot initialize: Backend required for authentication')
+      return
+    }
+    
+    // Only restore session if backend is available
     await restoreSession()
     
     // Setup listeners
@@ -38,13 +45,70 @@ export function WalletProvider({ children }) {
   }
 
   const testBackendConnection = async () => {
-    try {
-      const health = await api.healthCheck()
-      console.log('Backend connected:', health)
-    } catch (err) {
-      console.error('Backend connection failed:', err.message)
-      // Don't block - app can work with cached data
+    const maxRetries = 3
+    const timeout = 60000 // 60 seconds for Render wake-up
+    
+    setBackendStatus('checking')
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Backend connection attempt ${attempt}/${maxRetries}...`)
+        
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeout)
+        
+        const response = await fetch('https://avio-backend-v6no.onrender.com/system/health', {
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' }
+        })
+        
+        clearTimeout(timeoutId)
+        
+        if (response.ok) {
+          const health = await response.json()
+          console.log('✅ Backend connected:', health)
+          setBackendStatus('connected')
+          return true
+        }
+        
+        throw new Error(`HTTP ${response.status}`)
+        
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          console.warn(`⏱️ Attempt ${attempt} timeout - backend is waking up...`)
+        } else {
+          console.warn(`⚠️ Attempt ${attempt} failed:`, err.message)
+        }
+        
+        // Last attempt failed
+        if (attempt === maxRetries) {
+          console.error('❌ Backend connection failed after all retries')
+          setBackendStatus('failed')
+          
+          toast.error('Unable to connect to authentication server. Please try again later.', {
+            duration: 7000,
+            action: {
+              label: 'Retry',
+              onClick: () => window.location.reload()
+            }
+          })
+          
+          return false
+        }
+        
+        // Show progress toast during retries
+        if (attempt === 1) {
+          toast.loading('Connecting to server... This may take up to 60 seconds', {
+            id: 'backend-connecting'
+          })
+        }
+        
+        // Exponential backoff before retry
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt))
+      }
     }
+    
+    return false
   }
 
   const restoreSession = async () => {
@@ -52,70 +116,162 @@ export function WalletProvider({ children }) {
     const savedToken = localStorage.getItem('authToken')
     const savedWalletType = localStorage.getItem('walletType')
 
-    if (!savedAccount || !savedToken) return
+    // SECURITY: All three must exist for valid session
+    if (!savedAccount || !savedToken || !savedWalletType) {
+      console.log('No valid saved session found')
+      return
+    }
 
     if (!window.ethereum) {
+      console.warn('Wallet not detected, clearing session')
       clearSession()
       return
     }
 
     try {
+      // SECURITY: Verify token is still valid with backend
+      const isValid = await verifyToken(savedToken, savedAccount)
+      
+      if (!isValid) {
+        console.warn('Saved token is invalid or expired')
+        clearSession()
+        toast.warning('Session expired. Please reconnect your wallet.')
+        return
+      }
+
       const web3Provider = new ethers.BrowserProvider(window.ethereum)
       const network = await web3Provider.getNetwork()
+      
+      // Verify the wallet still has this account
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' })
+      if (!accounts.includes(savedAccount)) {
+        console.warn('Saved account not found in wallet')
+        clearSession()
+        return
+      }
       
       setAccount(savedAccount)
       setProvider(web3Provider)
       setChainId(Number(network.chainId))
       setWalletType(savedWalletType)
+      setIsAuthenticated(true) // SECURITY: Mark as authenticated
+      
+      console.log('✅ Session restored and verified:', {
+        account: savedAccount,
+        chainId: Number(network.chainId),
+        wallet: savedWalletType
+      })
+      
+      // Dismiss any loading toasts
+      toast.dismiss('backend-connecting')
       
       if (Number(network.chainId) !== AVALANCHE_CHAIN_ID) {
         toast.warning('Please switch back to Avalanche')
       }
     } catch (err) {
+      console.error('Failed to restore session:', err)
       clearSession()
     }
   }
 
+  // SECURITY: Verify token with backend
+  const verifyToken = async (token, address) => {
+    try {
+      const response = await api.verifyToken({ token, address })
+      return response.valid === true
+    } catch (err) {
+      console.error('Token verification failed:', err)
+      return false
+    }
+  }
+
   const setupEventListeners = () => {
-    if (!window.ethereum) return
+    if (!window.ethereum) {
+      console.warn('No ethereum provider found for event listeners')
+      return
+    }
+
+    // Remove existing listeners to prevent duplicates
+    window.ethereum.removeAllListeners?.('accountsChanged')
+    window.ethereum.removeAllListeners?.('chainChanged')
 
     window.ethereum.on('accountsChanged', (accounts) => {
+      console.log('👛 Accounts changed:', accounts)
+      
       if (accounts.length === 0) {
         disconnect()
       } else if (accounts[0] !== account) {
+        // SECURITY: Must re-authenticate on account switch
         handleAccountSwitch(accounts[0])
       }
     })
 
-    window.ethereum.on('chainChanged', (chainId) => {
-      const newChainId = parseInt(chainId, 16)
+    window.ethereum.on('chainChanged', (chainIdHex) => {
+      const newChainId = parseInt(chainIdHex, 16)
+      console.log('🔗 Chain changed:', newChainId)
+      
       setChainId(newChainId)
       
       if (newChainId !== AVALANCHE_CHAIN_ID) {
-        toast.error('Please switch to Avalanche')
-        disconnect()
+        toast.error('Wrong network! Please switch to Avalanche', {
+          action: {
+            label: 'Switch Now',
+            onClick: () => switchToAvalanche()
+          }
+        })
+      } else {
+        toast.success('Connected to Avalanche')
       }
     })
+
+    console.log('✅ Event listeners setup complete')
   }
 
   const handleAccountSwitch = async (newAccount) => {
     try {
-      setAccount(newAccount)
-      localStorage.setItem('walletAccount', newAccount)
+      console.log('🔄 Account switched - re-authentication required:', newAccount)
+      
+      // SECURITY: Clear old session immediately
+      setIsAuthenticated(false)
+      
+      if (backendStatus !== 'connected') {
+        toast.error('Cannot authenticate: Backend unavailable')
+        disconnect()
+        return
+      }
+      
+      // SECURITY: Must authenticate new account
+      toast.loading('Authenticating new account...', { id: 'switch-auth' })
       
       const token = await authenticate(newAccount, provider)
+      
+      setAccount(newAccount)
+      setIsAuthenticated(true)
+      localStorage.setItem('walletAccount', newAccount)
       localStorage.setItem('authToken', token)
       
-      toast.info(`Switched to ${newAccount.slice(0, 6)}...${newAccount.slice(-4)}`)
+      toast.success(`Switched to ${newAccount.slice(0, 6)}...${newAccount.slice(-4)}`, {
+        id: 'switch-auth'
+      })
     } catch (err) {
-      toast.error('Failed to authenticate new account')
+      console.error('Failed to authenticate new account:', err)
+      toast.error('Authentication failed. Please reconnect.', { id: 'switch-auth' })
       disconnect()
     }
   }
 
-  // FIXED: Now accepts a specific wallet provider as parameter
   const connectWallet = async (preferredWallet = null, specificProvider = null) => {
-    // Use the specific provider passed from WalletModal, or fall back to window.ethereum
+    // SECURITY: Backend must be available for authentication
+    if (backendStatus !== 'connected') {
+      toast.error('Authentication server unavailable. Please wait or refresh the page.', {
+        action: {
+          label: 'Refresh',
+          onClick: () => window.location.reload()
+        }
+      })
+      return null
+    }
+
     const walletProvider = specificProvider || window.ethereum
 
     if (!walletProvider) {
@@ -131,7 +287,7 @@ export function WalletProvider({ children }) {
 
       console.log(`📡 Requesting accounts from ${detectedWallet}...`)
 
-      // First, check if there are already connected accounts (no popup needed)
+      // Check for existing connection first
       let accounts = []
       try {
         accounts = await walletProvider.request({ method: 'eth_accounts' })
@@ -142,17 +298,14 @@ export function WalletProvider({ children }) {
         console.log('No existing connection, will request new one')
       }
 
-      // If no accounts, request connection (this will show popup)
+      // Request connection if needed
       if (accounts.length === 0) {
         console.log('🔓 Opening wallet popup for authorization...')
         
-        // Add timeout to prevent hanging
         const requestAccountsWithTimeout = Promise.race([
-          walletProvider.request({
-            method: 'eth_requestAccounts'
-          }),
+          walletProvider.request({ method: 'eth_requestAccounts' }),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection request timed out.\n\nPlease check:\n• MetaMask popup is not blocked\n• MetaMask is unlocked\n• No pending requests in MetaMask')), 30000)
+            setTimeout(() => reject(new Error('Connection request timed out.\n\nPlease check:\n• Wallet popup is not blocked\n• Wallet is unlocked\n• No pending requests in wallet')), 30000)
           )
         ])
 
@@ -165,7 +318,7 @@ export function WalletProvider({ children }) {
 
       console.log('✅ Got accounts:', accounts[0])
 
-      // Create ethers provider from the specific wallet provider
+      // Create provider and check network
       let web3Provider = new ethers.BrowserProvider(walletProvider)
       const network = await web3Provider.getNetwork()
       const currentChainId = Number(network.chainId)
@@ -180,19 +333,29 @@ export function WalletProvider({ children }) {
 
       setProvider(web3Provider)
 
+      // SECURITY: Authentication is REQUIRED - no bypass
+      console.log('🔐 Starting authentication...')
+      toast.loading('Authenticating...', { id: 'auth-process' })
+      
       const token = await authenticate(accounts[0], web3Provider)
-
+      
+      // SECURITY: Only set account after successful authentication
       setAccount(accounts[0])
+      setIsAuthenticated(true)
       localStorage.setItem('walletAccount', accounts[0])
       localStorage.setItem('authToken', token)
       localStorage.setItem('walletType', detectedWallet)
 
-      toast.success(`Connected via ${detectedWallet === 'core' ? 'Core Wallet' : 'MetaMask'}!`)
+      toast.success(`Connected and authenticated via ${detectedWallet === 'core' ? 'Core Wallet' : 'MetaMask'}!`, {
+        id: 'auth-process'
+      })
       
       return accounts[0]
 
     } catch (err) {
       handleError(err)
+      // SECURITY: Ensure no partial state on auth failure
+      setIsAuthenticated(false)
       throw err
     } finally {
       setIsConnecting(false)
@@ -211,13 +374,18 @@ export function WalletProvider({ children }) {
 
   const authenticate = async (address, providerInstance) => {
     try {
+      console.log('🔐 Starting authentication for:', address)
+      
+      // SECURITY: Get fresh nonce from backend
       const { nonce } = await api.getNonce(address)
 
       const signer = await providerInstance.getSigner()
       const message = `Welcome to Avio!\n\nSign this message to authenticate.\n\nAddress: ${address}\nNonce: ${nonce}\nChain: Avalanche\n\nThis signature is free and won't cost gas.`
       
+      // SECURITY: User must sign message with their private key
       const signature = await signer.signMessage(message)
 
+      // SECURITY: Backend verifies signature and issues token
       const { token } = await api.verifySignature({
         address,
         signature,
@@ -226,12 +394,14 @@ export function WalletProvider({ children }) {
         chainId: AVALANCHE_CHAIN_ID
       })
 
+      console.log('✅ Authentication successful')
       return token
 
     } catch (err) {
       if (err.code === 4001) {
         throw new Error('Signature request rejected')
       }
+      console.error('Authentication failed:', err)
       throw err
     }
   }
@@ -240,18 +410,25 @@ export function WalletProvider({ children }) {
     const targetProvider = providerToUse || window.ethereum
     
     try {
+      console.log('🔄 Switching to Avalanche...')
+      
       await targetProvider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: AVALANCHE_HEX }]
       })
+      
       setChainId(AVALANCHE_CHAIN_ID)
+      console.log('✅ Switched to Avalanche')
+      
     } catch (err) {
       if (err.code === 4902) {
+        console.log('Adding Avalanche network...')
         await targetProvider.request({
           method: 'wallet_addEthereumChain',
           params: [AVALANCHE_CONFIG]
         })
         setChainId(AVALANCHE_CHAIN_ID)
+        console.log('✅ Avalanche network added')
       } else if (err.code !== 4001) {
         throw err
       }
@@ -265,12 +442,16 @@ export function WalletProvider({ children }) {
       message = 'Request rejected by user'
     } else if (err.code === -32002) {
       message = 'Request pending. Please check your wallet.'
+    } else if (err.message?.includes('timeout')) {
+      message = 'Request timed out. Please try again.'
     }
 
+    console.error('❌ Wallet error:', message, err)
     toast.error(message)
   }
 
   const disconnect = () => {
+    console.log('👋 Disconnecting wallet')
     clearSession()
     toast.success('Wallet disconnected')
   }
@@ -280,6 +461,7 @@ export function WalletProvider({ children }) {
     setProvider(null)
     setChainId(null)
     setWalletType(null)
+    setIsAuthenticated(false) // SECURITY: Clear auth status
     localStorage.removeItem('walletAccount')
     localStorage.removeItem('authToken')
     localStorage.removeItem('walletType')
@@ -291,10 +473,13 @@ export function WalletProvider({ children }) {
     chainId,
     isConnecting,
     walletType,
+    backendStatus,
+    isAuthenticated, // SECURITY: Expose auth status for protected routes
     connectWallet,
     disconnect,
     switchToAvalanche,
-    isConnected: !!account,
+    retryBackend: testBackendConnection,
+    isConnected: !!account && isAuthenticated, // SECURITY: Both must be true
     isOnAvalanche: chainId === AVALANCHE_CHAIN_ID
   }
 

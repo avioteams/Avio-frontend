@@ -1,23 +1,20 @@
 import { NavLink } from "react-router-dom"
-import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
 import {
-  IconChartBar,
-  IconDashboard,
-  IconFolder,
-  IconListDetails,
-  IconSettings,
-  IconUsers,
-} from "@tabler/icons-react"
+  Home,
+  Sparkles,
+  PiggyBank,
+  Wallet,
+  ShieldCheck,
+  Settings,
+} from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
@@ -26,27 +23,27 @@ const data = {
     {
       to: "/dashboard",
       title: "Dashboard",
-      icon: IconDashboard,
+      icon: Home,
     },
     {
       to: "/chat",
       title: "Create Automation",
-      icon: IconListDetails,
+      icon: Sparkles,
     },
-    {
-      to: "/dashboard/savings",
-      title: "Save some Money",
-      icon: IconChartBar,
-    },
-    {
-      to: "/dashboard/wallet",
-      title: "Fund Wallet",
-      icon: IconFolder,
-    },
+    // {
+    //   to: "/dashboard/savings",
+    //   title: "Save some Money",
+    //   icon: PiggyBank,
+    // },
+    // {
+    //   to: "/dashboard/wallet",
+    //   title: "Fund Wallet",
+    //   icon: Wallet,
+    // },
     {
       to: "/dashboard/escrow",
       title: "Escrow",
-      icon: IconUsers,
+      icon: ShieldCheck,
     },
   ],
 
@@ -54,7 +51,7 @@ const data = {
     {
       to: "/dashboard/settings",
       title: "Settings",
-      icon: IconSettings
+      icon: Settings,
     },
   ],
 }

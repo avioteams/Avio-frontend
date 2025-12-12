@@ -62,3 +62,11 @@ export const getAuthHeaders = () => {
     ...(token && { 'Authorization': `Bearer ${token}` })
   }
 }
+
+// Helper to check if we're in development mode
+export const isDevelopment = import.meta.env.DEV
+
+// Helper to get full URL (useful for debugging)
+export const getFullUrl = (endpoint) => {
+  return `${API_BASE_URL}${endpoint}`
+}
