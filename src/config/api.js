@@ -7,9 +7,9 @@ export const API_ENDPOINTS = {
     
     // Auth
     auth: {
-      nonce: '/api/auth/nonce',
-      verify: '/api/auth/verify',
-      verifyToken: '/api/auth/verify-token'
+      nonce: '/auth/nonce',
+      verify: '/auth/verify',
+      verifyToken: '/auth/verify-token'
     },
 
     // Rules

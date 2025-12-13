@@ -35,7 +35,7 @@ export default defineConfig({
         rewrite: (path) => path
       }
     }
-  }
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,

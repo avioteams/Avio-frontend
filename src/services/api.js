@@ -5,7 +5,7 @@ class ApiService {
   async handleResponse(response, errorMessage) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || errorMessage)
+      throw new Error(errorData.message || errorData.error || errorMessage)
     }
     return await response.json()
   }
@@ -33,14 +33,14 @@ class ApiService {
     }
   }
 
-  // Authentication
+  // Authentication - FIXED: Use query params instead of body
   async getNonce(address) {
     if (!address) throw new Error('Address is required')
 
-    const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.nonce}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address })
+    // Backend expects ?wallet=0x... as query param, not body
+    const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.nonce}?wallet=${address}`, {
+      method: 'GET', // Changed from POST to GET
+      headers: { 'Content-Type': 'application/json' }
     })
     return await this.handleResponse(response, 'Failed to get nonce')
   }
@@ -50,10 +50,17 @@ class ApiService {
       throw new Error('Address and signature are required')
     }
 
+    // Check if backend expects query params or body for verify endpoint
     const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.verify}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify({
+        wallet: data.address,  // Backend might use 'wallet' instead of 'address'
+        signature: data.signature,
+        message: data.message,
+        nonce: data.nonce,
+        chainId: data.chainId
+      })
     })
     return await this.handleResponse(response, 'Signature verification failed')
   }
